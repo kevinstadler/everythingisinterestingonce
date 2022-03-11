@@ -12,9 +12,12 @@ byte VALUE = 31;
 bool CORRECT_GAMMA = false;
 bool RANDOM_INTERVAL = false;
 
+// all durations in ms
 uint16_t ON_MIN = 1000;
 uint16_t ON_MAX = 2000;
 uint16_t OFF_TIME = 0;
+uint16_t FADE_IN = 0;
+uint16_t FADE_OUT = 0;
 
 String MSG = "everything is interesting once";
 
@@ -32,6 +35,8 @@ void loadConfig() {
     ON_MIN = f.parseInt();
     ON_MAX = f.parseInt();
     OFF_TIME = f.parseInt();
+    FADE_IN = f.parseInt();
+    FADE_OUT = f.parseInt();
     MSG = f.readString();
     f.close();
   }
@@ -48,6 +53,8 @@ void persistConfig() {
   f.println(ON_MIN);
   f.println(ON_MAX);
   f.println(OFF_TIME);
-  f.println(MSG);
+  f.println(FADE_IN);
+  f.println(FADE_OUT);
+  f.print(MSG);
   f.close();
 }

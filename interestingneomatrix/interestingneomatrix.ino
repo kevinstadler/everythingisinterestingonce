@@ -2,44 +2,62 @@
 
 #include "config.h"
 #include "drawing.h"
-#include "server.h"
+#include "wifi.h"
 
 void setup() {
   Serial.begin(115200);
   Serial.println();
-//  Serial.setTimeout(50);
+  startWifi();
 
-  matrix.begin();
-  matrix.setTextWrap(false);
-  matrix.setFont(&Font5x7Fixed);
-
-  startInterface();
   loadConfig();
-  Serial.println(MSG);
+  startMatrix();
   setMsg();
-  Serial.println(MSG);
+
+  startWifiServices();
 }
+
+void WAIT(uint32_t t = 10) {
+  server.handleClient();
+  delay(t);
+}
+
+// loop helper
+uint32_t t;
 
 void loop() {
   randomize();
+
+  t = millis();
+  if (FADE_IN) {
+    // fade in -- linearly interpolate from 0 up to VALUE
+    while (millis() < t + FADE_IN) {
+      draw((VALUE * (millis() - t)) / FADE_IN);
+      WAIT();
+    }
+  }
+
   draw();
-  uint32_t until = millis() + (RANDOM_INTERVAL ? random(ON_MIN, ON_MAX) : ON_MIN);
-  Serial.print(until - millis());
-  while (millis() < until) {
-    server.handleClient();
-    delay(5);
+  t += FADE_IN + (RANDOM_INTERVAL ? random(ON_MIN, ON_MAX) : ON_MIN);
+  while (millis() < t) {
+    WAIT();
+  }
+
+  if (FADE_OUT) {
+    // fade out -- linearly interpolate from VALUE down to 0
+    t += FADE_OUT;
+    while (millis() < t) {
+      draw((VALUE * (t - millis())) / FADE_OUT);
+      WAIT();
+    }
   }
 
   if (OFF_TIME) {
-    until = millis() + OFF_TIME;
-    Serial.print('/');
-    Serial.print(until - millis());
-    matrix.fillScreen(0);
-    matrix.show();
-    while (millis() < until) {
-      server.handleClient();
-      delay(5);
+    draw(0);
+    t += OFF_TIME;
+    while (millis() < t) {
+      WAIT();
     }
   }
-  Serial.println();
+
+  ArduinoOTA.handle();
 }
