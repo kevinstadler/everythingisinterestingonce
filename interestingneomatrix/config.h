@@ -12,6 +12,7 @@ byte VALUE = 31;
 bool CORRECT_GAMMA = false;
 bool RANDOM_INTERVAL = false;
 
+uint16_t HUE_OFFSET = 0;
 // all durations in ms
 uint16_t ON_MIN = 1000;
 uint16_t ON_MAX = 2000;
@@ -32,6 +33,7 @@ void loadConfig() {
     VALUE = f.read();
     CORRECT_GAMMA = f.read();
     RANDOM_INTERVAL = f.read();
+    HUE_OFFSET = f.parseInt();
     ON_MIN = f.parseInt();
     ON_MAX = f.parseInt();
     OFF_TIME = f.parseInt();
@@ -39,6 +41,8 @@ void loadConfig() {
     FADE_OUT = f.parseInt();
     MSG = f.readString();
     f.close();
+  } else {
+    Serial.println("FS mounted, but no config file found.");
   }
 }
 
@@ -50,6 +54,7 @@ void persistConfig() {
   f.write(VALUE);
   f.write((byte) CORRECT_GAMMA);
   f.write((byte) RANDOM_INTERVAL);
+  f.println(HUE_OFFSET);
   f.println(ON_MIN);
   f.println(ON_MAX);
   f.println(OFF_TIME);

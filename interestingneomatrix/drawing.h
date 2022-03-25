@@ -41,7 +41,7 @@ void draw(byte brightness = VALUE) {
   } else {
     for (uint16_t i = 0; i < lit; i++) {
       // https://learn.adafruit.com/adafruit-neopixel-uberguide/arduino-library-use
-      uint32_t col = matrix.ColorHSV(hues[i] << (16 - HUE_BITS), SATURATION, brightness);
+      uint32_t col = matrix.ColorHSV(HUE_OFFSET + hues[i] << (16 - HUE_BITS), SATURATION, brightness);
       matrix.setPixelColor(litPixels[i], CORRECT_GAMMA ? matrix.gamma32(col) : col);
     }
   }
@@ -110,9 +110,7 @@ void setMsg(String msg = MSG) {
       distinctColors++;
     }
   }
-  Serial.printf("Up to %u distinguishable colors at this brightness\n", distinctColors);
-  Serial.print("Number of distinct hues that will be randomly generated: ");
-  Serial.println(1 << HUE_BITS);
+  Serial.printf("Randomly generating %u distinct hues, when the current LED brightness allows up to %u distinguishable hues\n", 1 << HUE_BITS, distinctColors);
 
   // how long does it take to enumerate all combos? -> INSANELY LONG
   // 260**300     use: x^a / x^b = x^(a-b)
