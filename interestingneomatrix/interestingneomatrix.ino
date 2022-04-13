@@ -1,4 +1,4 @@
-#define LED_PIN D7
+#define LED_PIN D4
 
 #include "config.h"
 #include "drawing.h"
@@ -16,50 +16,28 @@ void setup() {
   setMsg();
 
   startWifiServices();
+  Serial.println("Entering loop");
+  delay(1000);
 }
 
-void WAIT(uint32_t t = 10) {
-  server.handleClient();
-  delay(t);
-}
-
-// loop helper
-uint32_t t;
+// update at 50 FPS (realistic max is 30 anyways)
+#define PERIOD_MS 20
+uint32_t last_t;
+byte frames;
 
 void loop() {
-  randomize();
-
-  t = millis();
-  if (FADE_IN) {
-    // fade in -- linearly interpolate from 0 up to VALUE
-    while (millis() < t + FADE_IN) {
-      draw((VALUE * (millis() - t)) / FADE_IN);
-      WAIT();
-    }
+  uint32_t t = millis();
+  if (t - last_t >= 1000) {
+    Serial.printf("%u FPS\n", (1000 * frames) / (t - last_t));
+    last_t = t;
+    frames = 0;
+    ArduinoOTA.handle();
   }
-
-  draw();
-  t += FADE_IN + (RANDOM_INTERVAL ? random(ON_MIN, ON_MAX) : ON_MIN);
-  while (millis() < t) {
-    WAIT();
+  server.handleClient();
+  draw(t);
+  t = millis() - t;
+  if (t < PERIOD_MS) {
+    delay(PERIOD_MS - t);
   }
-
-  if (FADE_OUT) {
-    // fade out -- linearly interpolate from VALUE down to 0
-    t += FADE_OUT;
-    while (millis() < t) {
-      draw((VALUE * (t - millis())) / FADE_OUT);
-      WAIT();
-    }
-  }
-
-  if (OFF_TIME) {
-    draw(0);
-    t += OFF_TIME;
-    while (millis() < t) {
-      WAIT();
-    }
-  }
-
-  ArduinoOTA.handle();
+  frames++;
 }

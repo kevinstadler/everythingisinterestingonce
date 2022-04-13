@@ -10,12 +10,12 @@ byte VALUE = 31;
 // 127 -> 763
 // 255 -> 1531
 bool CORRECT_GAMMA = false;
-bool RANDOM_INTERVAL = false;
+bool RANDOM_INTERVAL = true;
 
 uint16_t HUE_OFFSET = 0;
 // all durations in ms
-uint16_t ON_MIN = 1000;
-uint16_t ON_MAX = 2000;
+uint16_t ON_MIN = 2000;
+uint16_t ON_MAX = 4000;
 uint16_t OFF_TIME = 0;
 uint16_t FADE_IN = 0;
 uint16_t FADE_OUT = 0;

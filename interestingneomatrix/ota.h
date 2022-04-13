@@ -7,7 +7,7 @@ void startOTA() {
   ArduinoOTA.onProgress([](unsigned int progress, unsigned int total) {
     byte percent = progress / (total / 100);
     if (percent % 10 == 0) {
-      Serial.printf("Progress: %u%%\n", percent);
+      Serial.printf("...%u%%", percent);
     }
   });
   ArduinoOTA.onError([](ota_error_t error) {
@@ -25,4 +25,6 @@ void startOTA() {
     }
   });
   ArduinoOTA.begin();
+  // for good measure (before anything else breaks)
+  ArduinoOTA.handle();
 }
