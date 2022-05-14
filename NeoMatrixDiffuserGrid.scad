@@ -5,7 +5,7 @@
 // * lr/bt_spacers is the distance that the spacer will have *from the theoretical led grid border* (which is actually inside the outer wall!)
 // negative spacer values shave off the outer wall (plus the given number of mm off the inner grid) -- generally advise *against* this because loose outer frame edges can cause detachment/warping..
 // * outer_spacers is [length/breadth, width/thickness, height/thickness]
-module led_diffuser_grid (n_leds, grid_height=3, airgap_height=4, lr_spacers=[4, 4], tb_spacers=[16, 26], outer_spacers=[5, 2, 1], outer_spacer_every=10, led_interval=10, led_size=4.8, led_spacer_width=1, led_spacer_height=1, led_spacer_every=2, wall_thickness=.6, outer_wall_thickness=.6, resistor_height=1, resistor_length=2.5, resistor_offset=.6) {
+module led_diffuser_grid (n_leds, grid_height=3, airgap_height=4, lr_spacers=[4, 4], tb_spacers=[16, 25], outer_spacers=[4, 3, 1], outer_spacer_every=10, led_interval=10, led_size=4.8, led_spacer_width=1, led_spacer_height=1, led_spacer_every=2, wall_thickness=.6, outer_wall_thickness=.6, resistor_height=1, resistor_length=2.5, resistor_offset=.6) {
 
     assert(resistor_height < grid_height, "Resistor cutout is taller than the actual grid, this is probably not what you want?");
 
@@ -70,7 +70,7 @@ module led_diffuser_grid (n_leds, grid_height=3, airgap_height=4, lr_spacers=[4,
                 translate([sign(x-.5)*(led_interval + lr_spacers[x])/2 + x*(n_leds[0]-1)*led_interval, toouteredge, outer_spacers[2]/2])
                 cube([lr_spacers[x], outer_spacers[0], outer_spacers[2]], true);
                 // vertical (airgap) spacer
-                translate([sign(x-.5)*(led_interval/2 + lr_spacers[x]) + x*(n_leds[0]-1)*led_interval, toouteredge - outer_spacers[0]/2, 0])
+                translate([sign(x-.5)*(led_interval/2 + lr_spacers[x]) + x*(n_leds[0]-1)*led_interval - sign(x)*outer_spacers[1], toouteredge - outer_spacers[0]/2, 0])
                 cube([outer_spacers[1], outer_spacers[0], grid_height + airgap_height]);
             }
         }
@@ -84,13 +84,18 @@ module led_diffuser_grid (n_leds, grid_height=3, airgap_height=4, lr_spacers=[4,
                 translate([toouteredge, sign(y-.5)*(led_interval + tb_spacers[y])/2 + y*(n_leds[1]-1)*led_interval, outer_spacers[2]/2])
                 cube([outer_spacers[0], tb_spacers[y], outer_spacers[2]], true);
                 // vertical (airgap) spacer
-                translate([toouteredge - outer_spacers[0]/2, sign(y-.5)*(led_interval/2 + tb_spacers[y]) + y*(n_leds[1]-1)*led_interval, 0])
+                translate([toouteredge - outer_spacers[0]/2, sign(y-.5)*(led_interval/2 + tb_spacers[y]) + y*(n_leds[1]-1)*led_interval - sign(y)*outer_spacers[1], 0])
                 cube([outer_spacers[0], outer_spacers[1], grid_height + airgap_height]);
+                // extra (on-grid) spacer
+                translate([toouteredge - outer_spacers[0]/2, sign(y-.5)*led_interval/2 - outer_wall_thickness/2 + y*(n_leds[1]-1)*led_interval, 0])
+                cube([outer_spacers[0], outer_wall_thickness, grid_height + airgap_height]);
             }
         }
     }
 }
 
-//led_diffuser_grid([26, 8], lr_spacers=[16, 0]);
-led_diffuser_grid([26, 8], lr_spacers=[0, 0]); // twice
-//led_diffuser_grid([26, 8], lr_spacers=[0, 16]);
+
+// from left to right
+led_diffuser_grid([22, 8], lr_spacers=[16, 0]);
+//led_diffuser_grid([28, 8], lr_spacers=[0, 0]); // thrice
+//led_diffuser_grid([22, 8], lr_spacers=[0, 16]);
