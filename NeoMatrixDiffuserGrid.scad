@@ -5,7 +5,8 @@
 // * lr/bt_spacers is the distance that the spacer will have *from the theoretical led grid border* (which is actually inside the outer wall!)
 // negative spacer values shave off the outer wall (plus the given number of mm off the inner grid) -- generally advise *against* this because loose outer frame edges can cause detachment/warping..
 // * outer_spacers is [length/breadth, width/thickness, height/thickness]
-module led_diffuser_grid (n_leds, grid_height=3, airgap_height=4, lr_spacers=[4, 4], tb_spacers=[16, 25], outer_spacers=[4, 3, 1], outer_spacer_every=10, led_interval=10, led_size=4.8, led_spacer_width=1, led_spacer_height=1, led_spacer_every=2, wall_thickness=.6, outer_wall_thickness=.6, resistor_height=1, resistor_length=2.5, resistor_offset=.6) {
+
+module led_diffuser_grid (n_leds, led_interval=10, grid_height=3, airgap_height=4, lr_spacers=[4, 4], tb_spacers=[20, 22.5], outer_spacers=[4, 2, .6], outer_spacer_every=6, led_size=4.8, led_spacer_width=1, led_spacer_height=1, led_spacer_every=2, wall_thickness=.6, outer_wall_thickness=.6, resistor_height=1, resistor_length=2.5, resistor_offset=.6) {
 
     assert(resistor_height < grid_height, "Resistor cutout is taller than the actual grid, this is probably not what you want?");
 
@@ -94,8 +95,27 @@ module led_diffuser_grid (n_leds, grid_height=3, airgap_height=4, lr_spacers=[4,
     }
 }
 
+led_interval_shrinkage = 10.015;
 
 // from left to right
-led_diffuser_grid([22, 8], lr_spacers=[16, 0]);
-//led_diffuser_grid([28, 8], lr_spacers=[0, 0]); // thrice
-//led_diffuser_grid([22, 8], lr_spacers=[0, 16]);
+//led_diffuser_grid([22, 8], led_interval_shrinkage, lr_spacers=[16, 0]);
+//led_diffuser_grid([28, 8], led_interval_shrinkage, lr_spacers=[0, 0]); // thrice
+//led_diffuser_grid([22, 8], led_interval_shrinkage, lr_spacers=[0, 16]);
+
+
+// single -- 8.4 x 32.6
+//led_diffuser_grid([32, 8], led_interval_shrinkage, 2.5, 2.5, tb_spacers=[2, 2], lr_spacers=[3, 3]); // thrice
+
+
+// outer spacer left
+led_diffuser_grid([2, 8], led_interval_shrinkage, 1.8, 0, lr_spacers=[16, 0]);
+// inner connectors
+translate([25, 0, 0])
+led_diffuser_grid([4, 8], led_interval_shrinkage, 1.8, 0, lr_spacers=[0, 0]);
+translate([70, 0, 0])
+led_diffuser_grid([4, 8], led_interval_shrinkage, 1.8, 0, lr_spacers=[0, 0]);
+translate([115, 0, 0])
+led_diffuser_grid([4, 8], led_interval_shrinkage, 1.8, 0, lr_spacers=[0, 0]);
+// outer spacer right
+translate([160, 0, 0])
+led_diffuser_grid([2, 8], led_interval_shrinkage, 1.8, 0, lr_spacers=[0, 16]);
