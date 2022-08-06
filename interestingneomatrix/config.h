@@ -9,7 +9,7 @@ enum PixelType { Synced, Unsynced, Radial, Linear };
 // config parameters are written to file in this order
 struct Config {
   PixelType PIXEL_TYPE = Linear;
-  byte HUE_BITS = 5; // up to 16bit (65k hues), no point using more than 10bit (1024 hues)
+  byte HUE_BITS = 6; // up to 16bit (65k hues), no point using more than 10bit (1024 hues)
   byte SATURATION = 255;
   byte VALUE = 127;
   // actually distinguishable hues per brightness level (=HSV value):
@@ -33,8 +33,10 @@ struct Config {
 
   byte HUE_OFFSET = 0;
   byte DHUE_DETERMINISTIC = 0;
+  // this one goes in both directions
   byte DHUE_MIN = 0;
-  byte DHUE_MAX = 0;
+  byte HUE_DRIFT = 0;
+
 };
 
 struct Config CONFIG;

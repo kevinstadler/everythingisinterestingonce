@@ -1,7 +1,9 @@
+#include "hues.h"
+
 class Pixel {
   public:
     Pixel() {
-      this->hue = transitionP;
+//      this->hue = transitionP;
     };
     virtual ~Pixel() {};
     CRGB getColor(uint32_t t) {
@@ -10,12 +12,15 @@ class Pixel {
       return getRawColor(t);
     }
     uint16_t index;
-  protected:
     #ifdef FASTLED
     byte hue;
     #else
     uint16_t hue;
     #endif
+    virtual void init() {
+      this->hue = random();
+    }
+  protected:
     virtual CRGB getRawColor(uint32_t t);
     uint16_t effectiveHue(uint16_t hue) {
       #ifdef FASTLED
@@ -56,7 +61,7 @@ class SyncedPixel : public Pixel {
         return 0;
       }
       if (this->nSynced != nLit) {
-        this->hue = random();
+        this->hue = randomHue(this->hue);
         this->nSynced++;
       }
       return this->effectiveColor(this->hue);
@@ -75,7 +80,7 @@ class UnsyncedPixel : public Pixel {
     }
     CRGB getRawColor(uint32_t t) {
       if (t >= this->timeout) {// + CONFIG.OFF_TIME) {
-        this->hue = random();
+        this->hue = randomHue(this->hue);
         this->timeout = this->getNewEndTime(t);
       }
 //      if (t >= this->timeout) {
@@ -97,13 +102,20 @@ class BlendingPixel : public Pixel {
     #endif
     uint32_t endTime;
     virtual CRGB getBlendedColor(byte progress);
+    virtual void init() override {
+      Pixel::init();
+      this->nextHue = random();
+    }
   public:
     CRGB getRawColor(uint32_t t) {
       if (t >= this->endTime && this->shouldChange()) {
         this->startTime = this->getNewStartTime(t);
         this->endTime = this->getNewEndTime(t);
         this->hue = this->nextHue;
-        this->nextHue = random();
+        this->nextHue = randomHue(this->hue);
+      } else {
+        // drift
+        this->nextHue = this->nextHue + random(2*CONFIG.HUE_DRIFT+1) - CONFIG.HUE_DRIFT;
       }
       // scale transition time to [0,255] -- TODO use sine transform instead of linear
       byte progress = (t < this->startTime) ? 255 - (255 * (this->startTime - t)) / CONFIG.TRANSITION_DURATION : 255;
@@ -128,13 +140,15 @@ class LinearBlendingPixel : public BlendingPixel {
       // weighted average of the *colors*
       CRGB col1 = this->effectiveColor(this->hue);
       CRGB col2 = this->effectiveColor(this->nextHue);
+      return col1.lerp8(col2, progress);
+
       // TODO bitwise each
 //      uint32_t col;
-      for (byte i = 0; i < 3; i++) {
-        col1[i] = ((255-progress)*col1[i] + progress*col2[i]) / 255;
+//      for (byte i = 0; i < 3; i++) {
+//        col1[i] = ((255-progress)*col1[i] + progress*col2[i]) / 255;
 //        col |= ((((255-progress)*((col1 >> 8*i) & 0xFF) + progress*((col2 >> 8*i) & 0xFF))) / 255) << 8*i;
-      }
-      return col1;
+//      }
+//      return col1;
     }
 };
 

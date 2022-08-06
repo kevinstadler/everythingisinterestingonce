@@ -76,7 +76,8 @@ void sendConfigForm() {
     + slider("on2", "on time (upper bound)", 10, 4000, CONFIG.ON_MAX, " ms", 50, CONFIG.RANDOM_INTERVAL)
     + slider("p", "globally limit changes to one every ", 1, 10000, CONFIG.LIMIT_CHANGES, "ms")
     + slider("q", "transition duration", 0, 10000, CONFIG.TRANSITION_DURATION, "ms")
-    + checkbox("y", CONFIG.PACE_TRANSITIONS, "pace transitions");
+    + checkbox("y", CONFIG.PACE_TRANSITIONS, "pace transitions")
+    + slider("d", "random hue drift", 0, 127, CONFIG.HUE_DRIFT, "/127");
   //  + slider("fout", "fade-out time", 0, 1000, CONFIG.FADE_OUT, " ms", 10)
   //  + slider("off", "off time", 0, 4000, CONFIG.OFF_TIME, " ms", 10);
 //  +  dropdown("load", options);
@@ -123,6 +124,7 @@ void handleForm() {
       case 'c':
         writeConfig(val); break;
       case 'd':
+        CONFIG.HUE_DRIFT = x;
         // TODO set as default config
         break;
       case 'g':

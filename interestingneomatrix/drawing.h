@@ -19,11 +19,13 @@ uint16_t nLit = 0;
 byte fps = 28;
 #define LED_TYPE NEO_MATRIX_BOTTOM + NEO_MATRIX_RIGHT + NEO_MATRIX_COLUMNS + NEO_MATRIX_ZIGZAG
 
+#define N_PANELS 4
+
 #ifdef FASTLED
-CRGB leds[32 * 4 * 8];
-FastLED_NeoMatrix matrix = FastLED_NeoMatrix(leds, 32 * 4, 8, LED_TYPE);
+CRGB leds[32 * 8 * N_PANELS];
+FastLED_NeoMatrix matrix = FastLED_NeoMatrix(leds, 32 * N_PANELS, 8, LED_TYPE);
 #else
-Adafruit_NeoMatrix matrix = Adafruit_NeoMatrix(32 * 4, 8, LED_PIN, LED_TYPE, NEO_GRB);
+Adafruit_NeoMatrix matrix = Adafruit_NeoMatrix(32 * N_PANELS, 8, LED_PIN, LED_TYPE, NEO_GRB);
 #endif
 
 #include "pixel.h"
@@ -137,13 +139,14 @@ void setMsg(String msg = MSG) {
   for (uint16_t i = 0; i < nLit; i++) {
     // can't seen to call random() in the pixel constructor, so just abuse the
     /// transition probability variable which will anyway be recalculated below
-    transitionP = random();
+//    transitionP = random();
     switch (CONFIG.PIXEL_TYPE) {
       case Synced:   pixels[i] = new SyncedPixel(); break;
       case Unsynced: pixels[i] = new UnsyncedPixel(); break;
       case Radial:   pixels[i] = new RadialBlendingPixel(); break;
       case Linear:   pixels[i] = new LinearBlendingPixel(); break;
     }
+    pixels[i]->init();
   }
 
   uint16_t j = 0;
