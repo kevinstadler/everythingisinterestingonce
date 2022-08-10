@@ -29,9 +29,14 @@ String checkbox(String id, bool checked, String desc, String extraCallback = "")
     (checked ? " checked" : "") + "> <label for=\"" + id + "\">" + desc + "</label><br>";
 }
 
-String dropdown(String id, String options[], byte n, byte selectedIndex) {
+String toggle(String id) {
+  // https://www.w3schools.com/howto/howto_css_switch.asp
+  return "";
+}
+
+String dropdown(String id, String options[], byte n, byte selectedIndex, byte startAt = 0) {
   String s = "<select onchange=" + fetchCallback(id, "value") + ">";
-  for (byte i = 0; i < n; i++) {
+  for (byte i = startAt; i < n; i++) {
     s += "<option value=\"" + String(i) + "\"" + ((i == selectedIndex) ? " selected" : "") + ">" + options[i] + "</option>";
   }
   return s + "</select>";
@@ -46,7 +51,7 @@ String textarea(String filename, String content) {
     <title>everything has a web interface once</title>\
     <style>\
       html {  width: fit-content; margin: auto; }\
-      body, input, select { background-color: black; color: #ccc; font-family: Courier, serif; text-align: center; margin: 1em .5em; }\
+      body, input, select, td { background-color: black; color: #ccc; font-family: Courier, serif; text-align: center; margin: 1em .5em; }\
     </style>\
   </head>\
   <body>"
@@ -54,6 +59,7 @@ String textarea(String filename, String content) {
 #define FOOTER "  </body></html>"
 
 void sendForm(String content) {
+  // https://github.com/esp8266/Arduino/issues/3205
   server.send(200, "text/html", HEADER + content + FOOTER);
 }
 
@@ -61,36 +67,48 @@ String form(String action, String content) {
   return "<form action=\"" + action + "\" method=\"post\">" + content + "</form>";
 }
 
+String animationConfig(uint8_t i) {
+  return "transition type: " + dropdown(String(i) + "t", PIXEL_TYPES, N_PIXEL_TYPES, (byte) CONFIG.ANIMATION[i].PIXEL_TYPE, 1) + "<br>"
+    + slider(String(i) + "l", "don't transition more than every ", 1, 5000, CONFIG.ANIMATION[i].LIMIT_CHANGES, "ms")
+    + slider(String(i) + "q", "minimum transition duration", 1, 10000, CONFIG.ANIMATION[i].TRANSITION_DURATION, "ms", 50)
+    + slider(String(i) + "r", "random extra time", 0, 10000, CONFIG.ANIMATION[i].TRANSITION_EXTRA, "ms", 50)
+    + checkbox(String(i) + "y", CONFIG.ANIMATION[i].PACE_TRANSITIONS, "pace based on color distance")
+    + checkbox(String(i) + "s", CONFIG.ANIMATION[i].SINE_TRANSITIONS, "use sinusoid transitions")
+    + slider(String(i) + "off", "off time / non-paced transition time", 0, 4000, CONFIG.ANIMATION[i].OFF_TIME, " ms", 50)
+    + slider(String(i) + "d", "drift / noise", 0, 255, CONFIG.ANIMATION[i].HUE_DRIFT, "/255")
+    + slider(String(i) + "n", "minimum hue change", 0, 127, CONFIG.ANIMATION[i].DHUE_MIN, "/127")
+    + slider(String(i) + "on1", "fixed on time", 10, 4000, CONFIG.ANIMATION[i].ON_TIME, " ms", 50)
+    + slider(String(i) + "on2", "random extra time", 0, 4000, CONFIG.ANIMATION[i].ON_EXTRA, " ms", 50);
+}
+
 void sendConfigForm() {
-  String configForm = input("msg", MSG, "text", "font-size: 200%; width: 30em; text-align: center;") + "<br>pixel animation style: "
-    + dropdown("t", PIXEL_TYPES, 4, (byte) CONFIG.PIXEL_TYPE) + "<br>"
-    + slider("0", "hue offset (deg)", 0, 360, CONFIG.HUE_OFFSET/182, "/360")
+  server.setContentLength(CONTENT_LENGTH_UNKNOWN);
+  server.send(200, "text/html", HEADER);
+
+  server.sendContent(input("msg", MSG, "text", "font-size: 200%; width: 30em; text-align: center;") + "<br>"
+//    + dropdown("t", PIXEL_TYPES, N_PIXEL_TYPES, (byte) CONFIG.PIXEL_TYPE) + "<br>"
+//    + slider("o", "hue offset (deg)", 0, 360, CONFIG.HUE_OFFSET/182, "/360")
     + slider("h", "hue resolution (bits)", 0, 16, CONFIG.HUE_BITS, "/16")
-    + slider("n", "minimum hue change", 0, 128, CONFIG.DHUE_MIN, "/128")
     + slider("s", "saturation", 0, 255, CONFIG.SATURATION, "/255")
     + slider("v", "value/brightness", 1, 255, CONFIG.VALUE, "/255")
-  //  + checkbox("g", CORRECT_GAMMA, "gamma-correct hues");
+//    + checkbox("g", CONFIG.CORRECT_GAMMA, "apply gamma correction")
   //  + slider("fin", "fade-in time", 0, 1000, CONFIG.FADE_IN, " ms", 10)
-    + slider("on1", "on time", 10, 4000, CONFIG.ON_MIN, " ms", 50)
-    + checkbox("r", CONFIG.RANDOM_INTERVAL, "randomize intervals", "document.getElementById('on2').disabled = (this.value === 'false')")
-    + slider("on2", "on time (upper bound)", 10, 4000, CONFIG.ON_MAX, " ms", 50, CONFIG.RANDOM_INTERVAL)
-    + slider("p", "globally limit changes to one every ", 1, 10000, CONFIG.LIMIT_CHANGES, "ms")
-    + slider("q", "transition duration", 0, 10000, CONFIG.TRANSITION_DURATION, "ms")
-    + checkbox("y", CONFIG.PACE_TRANSITIONS, "pace transitions")
-    + slider("d", "random hue drift", 0, 127, CONFIG.HUE_DRIFT, "/127");
   //  + slider("fout", "fade-out time", 0, 1000, CONFIG.FADE_OUT, " ms", 10)
-  //  + slider("off", "off time", 0, 4000, CONFIG.OFF_TIME, " ms", 10);
 //  +  dropdown("load", options);
-  configForm += input("filename", CONFIG_FILE_NAME) + button("config", "save current config", true, fetchCallback("config", "previousElementSibling.value")) + "<br>"
-    + "<select onchange=\"" + + "\"><option></option>";
+//    + checkbox("TODO", CONFIG.SYNC_PIXELS, "sync all pixels")
+    + "<table><tr><td style=\"padding-right: 4em;\">" + animationConfig(0) + "</td><td>" + animationConfig(1) + "</td></tr></table>"
+    + input("filename", CONFIG_FILE_NAME) + button("config", "save current config", true, fetchCallback("config", "previousElementSibling.value")) + "<br>"
+    + "config settings: <select id=\"config\"><option></option>");
   Dir dir = LittleFS.openDir(CONFIG_DIR);
   while (dir.next()) {
-    configForm += "<option value=\"" + dir.fileName() + "\"" + (dir.fileName().equals(CONFIG_FILE_NAME) ? " selected" : "") + ">" + dir.fileName() + "</option>";
+    server.sendContent("<option value=\"" + dir.fileName() + "\"" + (dir.fileName().equals(CONFIG_FILE_NAME) ? " selected" : "") + ">" + dir.fileName() + "</option>");
   }
-  configForm += "</select>" + button("load", "load config", true, fetchCallback("load", "previousElementSibling.value", "location.reload()"))
-  // TODO add button("p", "set as default")
-    + "<br>" + button("z", "restart");
-  sendForm(configForm);
+  server.sendContent("</select>"
+    + button("load", "load", true, fetchCallback("load", "parentNode.querySelector('#config').value", "location.reload()"))
+    + button("default", "set as default", true, fetchCallback("default", "parentNode.querySelector('#config').value", "location.reload()"))
+    + button("erase", "delete", true, fetchCallback("erase", "parentNode.querySelector('#config').value", "location.reload()"))
+    + "<br>" + button("r", "restart"));
+  server.sendContent(FOOTER);
 }
 
 void handleForm() {
@@ -109,43 +127,92 @@ void handleForm() {
   } else {
     String val = server.arg("plain");
     uint16_t x = val.toInt();
-    Serial.println(val);
+    Serial.println(server.uri() + ": " + val);
 
-    String target = server.uri().substring(1);
-    switch (target.charAt(0)) {
-      case '0':
-        #ifdef FASTLED
-        // from [0,360) to [0, 255) -- ROUGH
-        CONFIG.HUE_OFFSET = (x*7)/10; break;
-        #else
-        // from [0,360) to [0, 65536)
-        CONFIG.HUE_OFFSET = 182*x; break;
-        #endif
-      case 'c':
-        writeConfig(val); break;
-      case 'd':
-        CONFIG.HUE_DRIFT = x;
-        // TODO set as default config
-        break;
-      case 'g':
-        CONFIG.CORRECT_GAMMA = server.arg(0).equals("true"); break;
-      case 'h':
-        CONFIG.HUE_BITS = x; break;
-      case 'l':
-        loadConfig(val); break;
-      case 'm':
-        setMsg(val); break;
-      case 'n':
-        CONFIG.DHUE_MIN = x; break;
-      case 'o':
-        if (target.equals("on1")) {
-          CONFIG.ON_MIN = x;
-        } else if (target.equals("on2")) {
-          CONFIG.ON_MAX = x;
-        } else if (target.equals("off")) {
-//          CONFIG.OFF_TIME = x;
-        }
-        break;
+    if (server.uri().charAt(1) == '0' || server.uri().charAt(1) == '1') {
+      // animation config
+      uint8_t animation = server.uri().substring(1, 2).toInt();
+      String target = server.uri().substring(2);
+
+      switch (target.charAt(0)) {
+        case 'd':
+          CONFIG.ANIMATION[animation].HUE_DRIFT = x;
+          // TODO set as default config
+          break;
+        case 'l':
+          CONFIG.ANIMATION[animation].LIMIT_CHANGES = x;
+          setMsg();
+          break;
+        case 'n':
+          CONFIG.ANIMATION[animation].DHUE_MIN = x; break;
+        case 'o':
+          if (target.equals("on1")) {
+            CONFIG.ANIMATION[animation].ON_TIME = x;
+          } else if (target.equals("on2")) {
+            CONFIG.ANIMATION[animation].ON_EXTRA = x;
+          } else if (target.equals("off")) {
+            CONFIG.ANIMATION[animation].OFF_TIME = x;
+          }
+          break;
+        case 'q':
+          CONFIG.ANIMATION[animation].TRANSITION_DURATION = x; break;
+        case 'r':
+          CONFIG.ANIMATION[animation].TRANSITION_EXTRA = x; break;
+        case 's':
+          CONFIG.ANIMATION[animation].SINE_TRANSITIONS = server.arg(0).equals("true"); break;
+        case 't':
+          CONFIG.ANIMATION[animation].PIXEL_TYPE = (PixelType) x;
+          setMsg();
+          break;
+        case 'y':
+          CONFIG.ANIMATION[animation].PACE_TRANSITIONS = server.arg(0).equals("true"); break;
+        default:
+          Serial.println("unknown animation POST request!");
+      }
+      
+    } else {
+      // global config
+      String target = server.uri().substring(1);
+      switch (target.charAt(0)) {
+        case 'c':
+          writeConfig(val); break;
+        case 'd':
+          setDefaultConfig(val); break;
+        case 'e':
+          deleteConfig(val); break;
+        case 'g':
+          CONFIG.CORRECT_GAMMA = server.arg(0).equals("true"); break;
+        case 'h':
+          CONFIG.HUE_BITS = x; break;
+        case 'l':
+          loadConfig(val); break;
+        case 'm':
+          setMsg(val); break;
+        case 'o':
+          #ifdef FASTLED
+          // from [0,360) to [0, 255) -- ROUGH
+          CONFIG.HUE_OFFSET = (x*7)/10; break;
+          #else
+          // from [0,360) to [0, 65536)
+          CONFIG.HUE_OFFSET = 182*x; break;
+          #endif
+        case 'r':
+          Serial.println("Restarting");
+          ESP.reset();
+        case 's':
+          CONFIG.SATURATION = x; break;
+        case 'v':
+          CONFIG.VALUE = x; break;
+        case 'w':
+          if (File f = LittleFS.open(server.arg("filename"), "w")) {
+            f.println(server.arg("content"));
+            f.close();
+          }
+          break;
+        default:
+          Serial.println("unknown global POST request!");
+      }
+    }
 /*      case 'f':
         if (target.equals("fin")) {
           CONFIG.FADE_IN = x;
@@ -154,36 +221,6 @@ void handleForm() {
         }
         break;
         */
-      case 'p':
-        CONFIG.LIMIT_CHANGES = x;
-        setMsg();
-        break;
-      case 'q':
-        CONFIG.TRANSITION_DURATION = x; break;
-      case 'r':
-        CONFIG.RANDOM_INTERVAL = server.arg(0).equals("true"); break;
-      case 's':
-        CONFIG.SATURATION = x; break;
-      case 't':
-        CONFIG.PIXEL_TYPE = (PixelType) x;
-        setMsg();
-        break;
-      case 'v':
-        CONFIG.VALUE = x; break;
-      case 'w':
-        if (File f = LittleFS.open(server.arg("filename"), "w")) {
-          f.println(server.arg("content"));
-          f.close();
-        }
-        break;
-      case 'y':
-        CONFIG.PACE_TRANSITIONS = server.arg(0).equals("true"); break;
-      case 'z':
-        Serial.println("Restarting");
-        ESP.reset();
-      default:
-        Serial.println("unknown POST request!");
-    }
     server.send(200, "text/plain", val);
   }
 }

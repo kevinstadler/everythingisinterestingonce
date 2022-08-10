@@ -64,6 +64,19 @@ void startMatrix() {
   matrix.show();
 }
 
+void showMsg(String msg) {
+  matrix.clear();
+  matrix.setCursor(0, 7);
+  matrix.setPassThruColor(CRGB(CONFIG.VALUE/3, CONFIG.VALUE/3, CONFIG.VALUE/3));
+  matrix.print(msg);
+  matrix.show();
+  matrix.setPassThruColor();
+  FastLED.delay(5);
+  delay(2000);
+  matrix.clear();
+  matrix.show();
+}
+
 void draw(uint32_t t = millis()) {
   uint16_t changed = 0;
   for (uint16_t i = 0; i < nLit; i++) {
@@ -140,12 +153,14 @@ void setMsg(String msg = MSG) {
     // can't seen to call random() in the pixel constructor, so just abuse the
     /// transition probability variable which will anyway be recalculated below
 //    transitionP = random();
-    switch (CONFIG.PIXEL_TYPE) {
+    pixels[i] = new Pixel();
+/*    switch (CONFIG.ANIMATION[0].PIXEL_TYPE) {
       case Synced:   pixels[i] = new SyncedPixel(); break;
       case Unsynced: pixels[i] = new UnsyncedPixel(); break;
       case Radial:   pixels[i] = new RadialBlendingPixel(); break;
       case Linear:   pixels[i] = new LinearBlendingPixel(); break;
-    }
+      case Flicker:   pixels[i] = new FlickeringPixel(); break;
+    }*/
     pixels[i]->init();
   }
 
@@ -177,16 +192,16 @@ void setMsg(String msg = MSG) {
   Serial.printf("Randomly generating %u distinct hues, when the current LED brightness allows up to %u distinguishable hues\n", 1 << CONFIG.HUE_BITS, distinctColors);
 
   // calculate transition probability
-  uint16_t meanTimeBetween = (CONFIG.ON_MIN + (CONFIG.RANDOM_INTERVAL ? CONFIG.ON_MAX : CONFIG.ON_MIN)) / (2 * nLit);
-  if (CONFIG.LIMIT_CHANGES <= meanTimeBetween) {
-    transitionP = PROBABILITY_BASE;
+  uint16_t meanTimeBetween = (CONFIG.ANIMATION[1].ON_TIME + CONFIG.ANIMATION[1].ON_EXTRA/2 + CONFIG.ANIMATION[1].TRANSITION_DURATION) / nLit;
+  if (CONFIG.ANIMATION[0].LIMIT_CHANGES <= meanTimeBetween) {
+    transitionPs[0] = PROBABILITY_BASE;
     Serial.println("Transition will be immediate");
   } else {
     // if meantime is 100 and limit is 200 -> 1 of the nLit pixels should trigger after 100 ms
     // if meantime is 100 and limit is 1000 -> 1 of the nLit should trigger after 900ms
     // per-pixel chance of triggering: probability base = X * fps / (1000 * (limit_changes - meantime))
-    transitionP = PROBABILITY_BASE * 1000 / (nLit * fps * (CONFIG.LIMIT_CHANGES - meanTimeBetween));
-    Serial.printf("Transition will be stochastic, roughly 1 in %u\n", PROBABILITY_BASE / transitionP);
+    transitionPs[0] = PROBABILITY_BASE * 1000 / (nLit * fps * (CONFIG.ANIMATION[0].LIMIT_CHANGES - meanTimeBetween));
+    Serial.printf("Transition will be stochastic, roughly 1 in %u\n", PROBABILITY_BASE / transitionPs[0]);
 //    Serial.println(matrix.fps());
   }
 

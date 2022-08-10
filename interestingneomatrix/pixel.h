@@ -1,27 +1,181 @@
 #include "hues.h"
+#include "gamma.h"
+
+#define nFlickers 3
+const uint8_t flickerIntensities[nFlickers] = { 255, 100, 50 };
+const uint8_t flickerDurations[nFlickers] = { 2, 3, 4 }; // relative
+const uint8_t totalFlickerDuration = 9;
 
 class Pixel {
   public:
     Pixel() {
-//      this->hue = transitionP;
+      this->nextHue = random();
+      this->steadyEnd = millis();
     };
     virtual ~Pixel() {};
     CRGB getColor(uint32_t t) {
       // gamma correction is last: http://renderwonk.com/blog/index.php/archive/adventures-with-gamma-correct-rendering/
-//      return CONFIG.CORRECT_GAMMA ? matrix.gamma32(getRawColor(t)) : getRawColor(t);
-      return getRawColor(t);
+      CRGB raw = this->getRawColor(t);
+      return CONFIG.CORRECT_GAMMA ? gamma32(raw) : raw;
     }
     uint16_t index;
-    #ifdef FASTLED
-    byte hue;
-    #else
-    uint16_t hue;
-    #endif
+    uint8_t animation = 0;
+
     virtual void init() {
-      this->hue = random();
+//      this->nextHue = random();
+//      this->steadyEnd = millis();
     }
   protected:
-    virtual CRGB getRawColor(uint32_t t);
+    // 4 states:
+    // * steady: trans < t < steady
+    // * transstart: trans < steady < t (increase trans)
+    // * trans: steady < t < trans
+    // * transend: steady < trans < t (increase steady => back to first state)
+    uint32_t transitionEnd = 0;
+    uint32_t steadyEnd = 0;
+
+    #ifdef FASTLED
+    byte hue;
+    byte nextHue;
+    #else
+    uint16_t nextHue;
+    uint16_t hue;
+    #endif
+
+    CRGB getRawColor(uint32_t t) {
+      if (t >= this->steadyEnd && t >= this->transitionEnd) {
+        // state change between transition <-> steady. which one?
+
+        if (this->steadyEnd > this->transitionEnd) {
+          // transition start
+          // TODO could even disallow transitioning altogether and stay non-transitioning
+          for (byte i = 0; i < 2; i++) {
+            if (this->shouldTransition(i)) {
+              this->animation = i;
+              this->hue = this->nextHue;
+              this->nextHue = randomHue(this->hue, this->animation);
+
+              uint16_t transitionDuration = CONFIG.ANIMATION[this->animation].TRANSITION_DURATION
+                + (CONFIG.ANIMATION[this->animation].TRANSITION_EXTRA > 0 ? random(CONFIG.ANIMATION[this->animation].TRANSITION_EXTRA+1) : 0);
+              if (CONFIG.ANIMATION[this->animation].PACE_TRANSITIONS) {
+//                Serial.printf("%u %u %u %u ", this->hue, this->nextHue,  (this->hue < this->nextHue ? this->nextHue - this->hue : this->hue - this->nextHue), transitionDuration);
+                transitionDuration = (this->hue < this->nextHue ? this->nextHue - this->hue : this->hue - this->nextHue) * transitionDuration / 127;
+//                Serial.println(transitionDuration);
+              }
+
+              // transitioning styles can decide how to handle the OFF_TIME internally
+              this->transitionEnd = this->steadyEnd + transitionDuration + CONFIG.ANIMATION[this->animation].OFF_TIME;
+              break;
+            }
+          }
+
+        } else {
+          // transition end: we've arrived at the next steady state
+          uint8_t probableNext = (transitionPs[0] == PROBABILITY_BASE) ? 0 : 1;
+          // WATCH OUT taking the wait of the more likely one here...
+          this->steadyEnd = this->transitionEnd + CONFIG.ANIMATION[probableNext].ON_TIME + (CONFIG.ANIMATION[probableNext].ON_EXTRA > 0 ? random(CONFIG.ANIMATION[probableNext].ON_EXTRA+1) : 0);
+        }
+      }
+
+      if (this->transitionEnd < t && t < this->steadyEnd) {
+        // drift?
+//        if (CONFIG.ANIMATION[this->animation].HUE_DRIFT > 0) {
+//            this->nextHue = this->nextHue + random(-CONFIG.ANIMATION[this->animation].HUE_DRIFT, CONFIG.ANIMATION[this->animation].HUE_DRIFT+1);
+//        }
+        return this->effectiveColor(this->nextHue);
+      }
+
+      // transitioning
+      uint16_t transitionDuration = this->transitionEnd - this->steadyEnd;
+      uint16_t intoTransition = t - this->steadyEnd;
+
+      switch (CONFIG.ANIMATION[this->animation].PIXEL_TYPE) {
+        case FadeToBlack:
+          return 0; // TODO implement
+        case Flicker:
+          return this->getFlickering(t);
+
+        case Radial:
+        case Linear:
+          // blending
+            // drift
+//            Serial.print('d');
+          // scale transition time to [0,255] -- TODO use sine transform instead of linear?
+          // just add OFF_TIME to transition duration
+          byte progress = 255 * intoTransition / transitionDuration;
+          return (CONFIG.ANIMATION[this->animation].PIXEL_TYPE == Radial) ? this->getRadialBlend(progress) : this->getLinearBlend(progress);
+      }
+      return this->effectiveColor(this->nextHue);
+    }
+
+    CRGB getRadialBlend(byte progress) {
+      // linearly interpolate hue
+      // FIXME this breaks with bytes because of overflow
+      return this->effectiveColor(((255-progress)*this->hue + progress*this->nextHue) / 255);
+    }
+    CRGB getLinearBlend(byte progress) {
+      // weighted average of the *colors*
+      CRGB col1 = this->effectiveColor(this->hue);
+      CRGB col2 = this->effectiveColor(this->nextHue);
+      return col1.lerp8(col2, progress);
+    }
+    CRGB getFlickering(uint32_t t) {
+      uint8_t value = CONFIG.VALUE;
+      uint32_t intoFlicker = t - this->steadyEnd;
+      uint16_t animationLength = this->transitionEnd - this->steadyEnd - CONFIG.ANIMATION[this->animation].OFF_TIME;
+
+      if (intoFlicker > animationLength) {
+        // flicker is wrapping up/fading into next hues -- this is limited by OFF_TIME
+        uint16_t postFlicker = intoFlicker - animationLength;
+        // use a FULL cycle for fade-in, but no more than .8s (too slow a pickup)
+        int16_t fadeIn = constrain(animationLength / nFlickers, 1, 800); // FIXME non-0 fadeIn avoids a division by zero in sinus fade map() below?
+        int16_t offOff = constrain(CONFIG.ANIMATION[this->animation].OFF_TIME - fadeIn, 0, CONFIG.ANIMATION[this->animation].OFF_TIME);
+//        Serial.printf("%u + %u = %u\n", fadeIn, offOff, CONFIG.ANIMATION[this->animation].OFF_TIME);
+        if (postFlicker <= offOff) {
+          value = 0;
+        } else {
+          // #1: sinus fade to value
+//          value = ( fadeInOut(map(postFlicker - offOff, 0, fadeIn, 0, 127)) * CONFIG.VALUE ) >> 8;
+          // #2: linear fade
+          value = CONFIG.VALUE * (postFlicker - offOff) / fadeIn;
+          // #3: TODO could fade in faster by abruptly stopping cos-transition at value?
+          return this->effectiveColor(this->nextHue, value);
+        }
+      } else {
+        // during flicker
+        // length of the current flicker (start with #0)
+        uint16_t flickerLength = animationLength * flickerDurations[0] / totalFlickerDuration;
+
+        // how far into the first cosine should we jump to start off smoothly from the original brightness value?
+        float skippedStart = HALF_PI - acos(CONFIG.VALUE / 255.0);
+        // that's in cycles, now map onto ms
+        uint16_t flickerStart = skippedStart * flickerLength / HALF_PI;
+        intoFlicker += flickerStart;
+
+        // figure out which flicker we're in
+        uint8_t cycle = 0;
+        while (intoFlicker >= flickerStart + flickerLength) {
+          if (++cycle == nFlickers) {
+            // avoid array overflow
+            return 0;
+          }
+          flickerStart += flickerLength;
+          flickerLength = animationLength * flickerDurations[cycle] / totalFlickerDuration;
+        }
+//        Serial.printf("%u/%u %u: %u %u\n", intoFlicker, animationLength, cycle, flickerStart, flickerLength);
+
+        uint16_t progress = map(intoFlicker - flickerStart, 0, flickerLength, 0, 255);
+        uint16_t intensity = fadeInOut(progress)*flickerIntensities[cycle];
+        if (CONFIG.ANIMATION[this->animation].HUE_DRIFT) {
+          // make sure noise doesn't lead to over- or underflow
+          int16_t noise = random(-CONFIG.ANIMATION[this->animation].HUE_DRIFT, CONFIG.ANIMATION[this->animation].HUE_DRIFT+1) << 8;
+          intensity += constrain(noise, -intensity, 65535 - intensity);
+        }
+        value = intensity >> 8;
+      }
+      return this->effectiveColor(this->hue, value);
+    }
+
     uint16_t effectiveHue(uint16_t hue) {
       #ifdef FASTLED
       return CONFIG.HUE_OFFSET + hue << (8 - CONFIG.HUE_BITS);
@@ -29,23 +183,23 @@ class Pixel {
       return CONFIG.HUE_OFFSET + hue << (16 - CONFIG.HUE_BITS);
       #endif
     }
-    CRGB effectiveColor(uint16_t hue) {
+    CRGB effectiveColor(uint16_t hue, uint8_t value = CONFIG.VALUE) {
       // https://learn.adafruit.com/adafruit-neopixel-uberguide/arduino-library-use
-      return CHSV(this->effectiveHue(hue), CONFIG.SATURATION, CONFIG.VALUE);
+      return CHSV(this->effectiveHue(hue), CONFIG.SATURATION, value);
     }
-    boolean shouldChange(uint32_t p = transitionP) {
-      return (p == PROBABILITY_BASE) || (random(PROBABILITY_BASE) <= p);
+    boolean shouldTransition(byte animation) {
+      return (transitionPs[animation] == PROBABILITY_BASE) || (random(PROBABILITY_BASE) <= transitionPs[animation]);
     }
     uint32_t getNewStartTime(uint32_t t) {
-      return t + CONFIG.TRANSITION_DURATION;
+      return t + CONFIG.ANIMATION[this->animation].TRANSITION_DURATION;
     }
     uint32_t getNewEndTime(uint32_t t) {
-      return t + CONFIG.TRANSITION_DURATION +
-        (CONFIG.RANDOM_INTERVAL ? random(min(CONFIG.ON_MIN, CONFIG.ON_MAX), max(CONFIG.ON_MIN, CONFIG.ON_MAX)) : CONFIG.ON_MIN);
+      return t + CONFIG.ANIMATION[this->animation].TRANSITION_DURATION + CONFIG.ANIMATION[this->animation].ON_TIME + 
+        (CONFIG.ANIMATION[this->animation].ON_EXTRA > 0 ? random(CONFIG.ANIMATION[this->animation].ON_EXTRA+1) : 0);
     }
 };
 
-class SyncedPixel : public Pixel {
+/*class SyncedPixel : public Pixel {
   protected:
     static uint32_t timeout;
     static uint16_t nSynced;
@@ -70,7 +224,6 @@ class SyncedPixel : public Pixel {
 
 uint32_t SyncedPixel::timeout;
 uint16_t SyncedPixel::nSynced;
-
 class UnsyncedPixel : public Pixel {
   protected:
     uint32_t timeout;
@@ -91,8 +244,9 @@ class UnsyncedPixel : public Pixel {
 //      }
     }
 };
+*/
 
-class BlendingPixel : public Pixel {
+/*class BlendingPixel : public Pixel {
   protected:
     uint32_t startTime;
     #ifdef FASTLED
@@ -108,17 +262,17 @@ class BlendingPixel : public Pixel {
     }
   public:
     CRGB getRawColor(uint32_t t) {
-      if (t >= this->endTime && this->shouldChange()) {
+      if (t >= this->endTime && this->shouldTransition()) {
         this->startTime = this->getNewStartTime(t);
         this->endTime = this->getNewEndTime(t);
         this->hue = this->nextHue;
         this->nextHue = randomHue(this->hue);
       } else {
         // drift
-        this->nextHue = this->nextHue + random(2*CONFIG.HUE_DRIFT+1) - CONFIG.HUE_DRIFT;
+        this->nextHue = this->nextHue + random(-CONFIG.ANIMATION[this->animation].HUE_DRIFT, CONFIG.ANIMATION[this->animation].HUE_DRIFT+1);
       }
       // scale transition time to [0,255] -- TODO use sine transform instead of linear
-      byte progress = (t < this->startTime) ? 255 - (255 * (this->startTime - t)) / CONFIG.TRANSITION_DURATION : 255;
+      byte progress = (t < this->startTime) ? 255 - (255 * (this->startTime - t)) / CONFIG.ANIMATION[this->animation].TRANSITION_DURATION : 255;
       return this->getBlendedColor(progress);
     }
 };
@@ -151,6 +305,12 @@ class LinearBlendingPixel : public BlendingPixel {
 //      return col1;
     }
 };
+/*
+ * 
+ */
+// dying
+//class FlickeringPixel : public UnsyncedPixel {
+
 
 // TODO implement permanently shifting type
 
