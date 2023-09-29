@@ -2,9 +2,12 @@
 #include "gamma.h"
 
 #define nFlickers 3
-const uint8_t flickerIntensities[nFlickers] = { 255, 100, 50 };
-const uint8_t flickerDurations[nFlickers] = { 2, 3, 4 }; // relative
-const uint8_t totalFlickerDuration = 9;
+const uint8_t flickerIntensities[nFlickers] = { 255, 120, 70 };
+const uint8_t flickerDurations[nFlickers] = { 2, 3, 5 }; // relative
+const uint8_t totalFlickerDuration = 10;
+
+uint16_t nonChanges = 0;
+uint32_t lastChange;
 
 class Pixel {
   public:
@@ -21,10 +24,6 @@ class Pixel {
     uint16_t index;
     uint8_t animation = 0;
 
-    virtual void init() {
-//      this->nextHue = random();
-//      this->steadyEnd = millis();
-    }
   protected:
     // 4 states:
     // * steady: trans < t < steady
@@ -51,6 +50,13 @@ class Pixel {
           // TODO could even disallow transitioning altogether and stay non-transitioning
           for (byte i = 0; i < 2; i++) {
             if (this->shouldTransition(i)) {
+              if (i == 0) {
+//                LOG.printf("%u -> %u on %uth attempt (after %u ms, %u attempts/s)\n", this->animation, i, nonChanges, millis() - lastChange, 1000*nonChanges/(millis() - lastChange));
+                lastChange = millis();
+                nonChanges = 0;
+              } else {
+                nonChanges++;
+              }
               this->animation = i;
               this->hue = this->nextHue;
               this->nextHue = randomHue(this->hue, this->animation);
@@ -71,9 +77,7 @@ class Pixel {
 
         } else {
           // transition end: we've arrived at the next steady state
-          uint8_t probableNext = (transitionPs[0] == PROBABILITY_BASE) ? 0 : 1;
-          // WATCH OUT taking the wait of the more likely one here...
-          this->steadyEnd = this->transitionEnd + CONFIG.ANIMATION[probableNext].ON_TIME + (CONFIG.ANIMATION[probableNext].ON_EXTRA > 0 ? random(CONFIG.ANIMATION[probableNext].ON_EXTRA+1) : 0);
+          this->steadyEnd = this->transitionEnd + CONFIG.ANIMATION[this->animation].ON_TIME + (CONFIG.ANIMATION[this->animation].ON_EXTRA > 0 ? random(CONFIG.ANIMATION[this->animation].ON_EXTRA+1) : 0);
         }
       }
 

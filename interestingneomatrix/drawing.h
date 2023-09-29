@@ -16,14 +16,15 @@
 
 #include "font.h"
 uint16_t nLit = 0;
-byte fps = 28;
+byte fps = 14;//1000 / PERIOD_MS;
 #define LED_TYPE NEO_MATRIX_BOTTOM + NEO_MATRIX_RIGHT + NEO_MATRIX_COLUMNS + NEO_MATRIX_ZIGZAG
 
 #define N_PANELS 4
+#define LED_WIDTH 32 * N_PANELS
 
 #ifdef FASTLED
-CRGB leds[32 * 8 * N_PANELS];
-FastLED_NeoMatrix matrix = FastLED_NeoMatrix(leds, 32 * N_PANELS, 8, LED_TYPE);
+CRGB leds[8 * LED_WIDTH];
+FastLED_NeoMatrix matrix = FastLED_NeoMatrix(leds, LED_WIDTH, 8, LED_TYPE);
 #else
 Adafruit_NeoMatrix matrix = Adafruit_NeoMatrix(32 * N_PANELS, 8, LED_PIN, LED_TYPE, NEO_GRB);
 #endif
@@ -35,6 +36,12 @@ Pixel **pixels;
 uint16_t distinctColors = 0;
 CRGB colors[1024];
 
+void fillRandomColors(uint8_t width) {
+  for (uint16_t i = 0; i < width * matrix.height(); i++) {
+    leds[matrix.width()*matrix.height() - 1 - i] = CHSV(random(), CONFIG.SATURATION, CONFIG.VALUE);
+  }
+}
+
 void startMatrix() {
 #ifdef FASTLED
   FastLED.addLeds<NEOPIXEL, LED_PIN>(leds, matrix.width() * matrix.height()); //.setCorrection(TypicalLEDStrip);
@@ -45,28 +52,31 @@ void startMatrix() {
   matrix.setFont(&Font5x7Fixed);
 
   // test all LEDs
-  for (int16_t col = matrix.width() / 8 - 1; col >= 0; col--) {
+/*  for (int16_t col = matrix.width() / 8 - 1; col >= 0; col--) {
 #ifdef FASTLED
     for (byte i = 0; i < 8 * matrix.height(); i++) {
-      //((CONFIG.VALUE << 11) | (CONFIG.VALUE << 6) | CONFIG.VALUE
-      leds[8 * col * matrix.height() + i].r = CONFIG.VALUE;
-      leds[8 * col * matrix.height() + i].g = CONFIG.VALUE;
-      leds[8 * col * matrix.height() + i].b = CONFIG.VALUE;
+      leds[8 * col * matrix.height() + i] = CRGB(CONFIG.VALUE, CONFIG.VALUE, CONFIG.VALUE);
+//      leds[8 * col * matrix.height() + i] = CHSV(random(), CONFIG.SATURATION, CONFIG.VALUE);
     }
 #else
     matrix.fill((CONFIG.VALUE << 16) | (CONFIG.VALUE << 8) | CONFIG.VALUE, 8 * col * matrix.height(), 8 * matrix.height());
 #endif
 
     matrix.show();
-    delay(120);
+    delay(100);
     matrix.clear();
+  }*/
+  for (uint8_t i = 1; i <= matrix.width(); i++) {
+    fillRandomColors(i);
+    matrix.show();
   }
+  matrix.clear();
   matrix.show();
 }
 
 void showMsg(String msg) {
   matrix.clear();
-  matrix.setCursor(0, 7);
+  matrix.setCursor(0, 6);
   matrix.setPassThruColor(CRGB(CONFIG.VALUE/3, CONFIG.VALUE/3, CONFIG.VALUE/3));
   matrix.print(msg);
   matrix.show();
@@ -98,7 +108,7 @@ void draw(uint32_t t = millis()) {
     //      Serial.printf("Redrawing because %u of %u pixels have changed\n", changed, nLit);
     matrix.show();
     // for some reason this is necessary to make sure reads go out
-    FastLED.delay(5);
+    FastLED.delay(1);
   }
 }
 
@@ -118,13 +128,16 @@ uint16_t currentEstimate(bool gammaCorrect = CONFIG.CORRECT_GAMMA, byte value = 
 }
 
 void setMsg(String msg = MSG) {
+  msg.trim();
+  if (msg.length() == 0) {
+    return;
+  }
   MSG = msg;
-  MSG.trim();
   int16_t x1, y1;
   uint16_t w, h;
   matrix.getTextBounds(MSG, 0, 0, &x1, &y1, &w, &h);
   uint16_t indent = (matrix.width() - w) / 2;
-  matrix.setCursor(indent, 7);
+  matrix.setCursor(indent, 6);
 
   // draw sentence and count then index filled pixels
   matrix.fillScreen(0);
@@ -144,24 +157,12 @@ void setMsg(String msg = MSG) {
     }
   }
 
-  Serial.printf("Message is %u pixels wide with %u pixels lit up, current draw %umA (%umA with gamma correct)\n",
+  LOG.printf("Message is %u pixels wide with %u pixels lit up, current draw %umA (%umA with gamma correct)\n",
                 w, nLit, currentEstimate(false), currentEstimate(true));
 
   pixels = new Pixel*[nLit];
-
   for (uint16_t i = 0; i < nLit; i++) {
-    // can't seen to call random() in the pixel constructor, so just abuse the
-    /// transition probability variable which will anyway be recalculated below
-//    transitionP = random();
     pixels[i] = new Pixel();
-/*    switch (CONFIG.ANIMATION[0].PIXEL_TYPE) {
-      case Synced:   pixels[i] = new SyncedPixel(); break;
-      case Unsynced: pixels[i] = new UnsyncedPixel(); break;
-      case Radial:   pixels[i] = new RadialBlendingPixel(); break;
-      case Linear:   pixels[i] = new LinearBlendingPixel(); break;
-      case Flicker:   pixels[i] = new FlickeringPixel(); break;
-    }*/
-    pixels[i]->init();
   }
 
   uint16_t j = 0;
@@ -189,20 +190,34 @@ void setMsg(String msg = MSG) {
       distinctColors++;
     }
   }
-  Serial.printf("Randomly generating %u distinct hues, when the current LED brightness allows up to %u distinguishable hues\n", 1 << CONFIG.HUE_BITS, distinctColors);
+  LOG.printf("Randomly generating %u distinct hues, when the current LED brightness allows up to %u distinguishable hues\n", 1 << CONFIG.HUE_BITS, distinctColors);
 
   // calculate transition probability
-  uint16_t meanTimeBetween = (CONFIG.ANIMATION[1].ON_TIME + CONFIG.ANIMATION[1].ON_EXTRA/2 + CONFIG.ANIMATION[1].TRANSITION_DURATION) / nLit;
+  uint16_t meanTimeBetween = CONFIG.ANIMATION[1].TRANSITION_DURATION + CONFIG.ANIMATION[1].TRANSITION_EXTRA/2;
+  if (CONFIG.ANIMATION[1].PACE_TRANSITIONS) {
+    meanTimeBetween /= 2;
+  }
+  meanTimeBetween += CONFIG.ANIMATION[1].ON_TIME + CONFIG.ANIMATION[1].ON_EXTRA/2;
+  meanTimeBetween /= nLit;
+  meanTimeBetween = max((uint16_t) 1, meanTimeBetween);
+
   if (CONFIG.ANIMATION[0].LIMIT_CHANGES <= meanTimeBetween) {
     transitionPs[0] = PROBABILITY_BASE;
-    Serial.println("Transition will be immediate");
+    LOG.println("Transition will be immediate");
   } else {
     // if meantime is 100 and limit is 200 -> 1 of the nLit pixels should trigger after 100 ms
     // if meantime is 100 and limit is 1000 -> 1 of the nLit should trigger after 900ms
+    // we want expected value of the binomial (number of successes) = n*p = 1 / ( (limit_changes-meanTimeBetween) * fps)
     // per-pixel chance of triggering: probability base = X * fps / (1000 * (limit_changes - meantime))
-    transitionPs[0] = PROBABILITY_BASE * 1000 / (nLit * fps * (CONFIG.ANIMATION[0].LIMIT_CHANGES - meanTimeBetween));
-    Serial.printf("Transition will be stochastic, roughly 1 in %u\n", PROBABILITY_BASE / transitionPs[0]);
-//    Serial.println(matrix.fps());
+    LOG.printf("Mean time between ready pixels is %ums, which is less than the limit of %ums\n", meanTimeBetween, CONFIG.ANIMATION[0].LIMIT_CHANGES);
+
+    // easier: reduce probability to 1 in CONFIG.ANIMATION[0].LIMIT_CHANGES / meanTimeBetween
+    transitionPs[0] = PROBABILITY_BASE * meanTimeBetween / CONFIG.ANIMATION[0].LIMIT_CHANGES;
+//    transitionPs[0] = PROBABILITY_BASE * 1000;
+//    transitionPs[0] /= saveFps;
+//    transitionPs[0] /= nLit;
+//    transitionPs[0] /= CONFIG.ANIMATION[0].LIMIT_CHANGES - meanTimeBetween;
+    LOG.printf("Transition will be stochastic, probability of triggering per pixel per (%ums) frame = %.4f\n", 1000/fps, transitionPs[0] / (float) PROBABILITY_BASE);
   }
 
   // how long does it take to enumerate all combos? -> INSANELY LONG

@@ -7,14 +7,20 @@ ESP8266WiFiMulti wifiMulti;
 WiFiEventHandler wifiConnectedHandler;
 WiFiEventHandler gotIPHandler;
 
+volatile bool validConnection = false;
+
 void onWifiConnected(const WiFiEventStationModeConnected& evt) {
-  Serial.print("WiFi connected: ");
-  Serial.println(WiFi.SSID());
+  LOG.print("WiFi connected: ");
+  LOG.println(WiFi.SSID());
+  // TODO check against file
+  //if (WiFi.SSID().equals(...)) {
+//    WiFi.disconnect();
+//  }
 }
 
 void onGotIP(const WiFiEventStationModeGotIP& evt) {
-  Serial.print("Got IP: ");
-  Serial.println(WiFi.localIP());
+  LOG.print("Got IP: ");
+  LOG.println(WiFi.localIP());
 }
 
 void startWifi() {
@@ -28,15 +34,17 @@ void startWifi() {
 void startWifiServices() {
   String wifiString = "";
   if (WiFi.status() != WL_CONNECTED) {
-    Serial.println("Wifi not connected yet, searching for one using multi");
+    LOG.println("Wifi not connected yet, searching for one using multi");
     WiFi.persistent(true);
     WiFi.mode(WIFI_STA);
   
     // Register multi WiFi networks
     File networks = LittleFS.open(WIFI_FILE, "r");
     bool hasNetworks = false;
+    wifiMulti.addAP("dk_sozialraum", "doyourdishes");
+    hasNetworks = true;
     if (networks) {
-      Serial.println("Loading networks from file");
+      LOG.println("Loading networks from file");
       while (networks.available()) {
         String w = networks.readStringUntil('\n');
         hasNetworks = true;
@@ -50,13 +58,13 @@ void startWifiServices() {
         }
       }
     } else {
-      Serial.println("Wifi config file not found, creating it");
+      LOG.println("Wifi config file not found, creating it");
       networks = LittleFS.open(WIFI_FILE, "w");
     }
     networks.close();
   
     if (!hasNetworks || wifiMulti.run(5000) != WL_CONNECTED) {
-      Serial.println("No WiFi found, starting AP instead");
+      LOG.println("No WiFi found, starting AP instead");
       // don't persist AP
       WiFi.persistent(false);
       if (WiFi.softAP("everythingisinterestingonce")) {
@@ -65,23 +73,20 @@ void startWifiServices() {
         wifiString = "total wifi failure";
       }
     } else {
-      Serial.println("MultiWifi succeeded");
+      LOG.println("MultiWifi succeeded");
     }
   }
   if (wifiString.equals("")) {
     wifiString = WiFi.SSID() + ": " + WiFi.localIP().toString();
   }
-  Serial.println(wifiString);
+  LOG.println(wifiString);
+  showMsg(wifiString);
 
-  matrix.clear();
-  matrix.setCursor(0, 7);
-  matrix.print(wifiString);
-  matrix.show();
-  delay(2000);
-  matrix.clear();
-  matrix.show();
-
-  Serial.println("Starting Wifi services");
+  #ifdef SERIAL
+  LOG.println("Starting Wifi services");
+  #else
+  TelnetStream.begin();
+  #endif
   startInterface();
   startOTA();
 }

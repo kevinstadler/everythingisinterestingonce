@@ -69,7 +69,7 @@ String form(String action, String content) {
 
 String animationConfig(uint8_t i) {
   return "transition type: " + dropdown(String(i) + "t", PIXEL_TYPES, N_PIXEL_TYPES, (byte) CONFIG.ANIMATION[i].PIXEL_TYPE, 1) + "<br>"
-    + slider(String(i) + "l", "don't transition more than every ", 1, 5000, CONFIG.ANIMATION[i].LIMIT_CHANGES, "ms")
+    + slider(String(i) + "l", "don't transition more than every ", 1, 10000, CONFIG.ANIMATION[i].LIMIT_CHANGES, "ms")
     + slider(String(i) + "q", "minimum transition duration", 1, 10000, CONFIG.ANIMATION[i].TRANSITION_DURATION, "ms", 50)
     + slider(String(i) + "r", "random extra time", 0, 10000, CONFIG.ANIMATION[i].TRANSITION_EXTRA, "ms", 50)
     + checkbox(String(i) + "y", CONFIG.ANIMATION[i].PACE_TRANSITIONS, "pace based on color distance")
@@ -97,7 +97,7 @@ void sendConfigForm() {
 //  +  dropdown("load", options);
 //    + checkbox("TODO", CONFIG.SYNC_PIXELS, "sync all pixels")
     + "<table><tr><td style=\"padding-right: 4em;\">" + animationConfig(0) + "</td><td>" + animationConfig(1) + "</td></tr></table>"
-    + input("filename", CONFIG_FILE_NAME) + button("config", "save current config", true, fetchCallback("config", "previousElementSibling.value")) + "<br>"
+    + input("filename", CONFIG_FILE_NAME) + button("conf", "save current config", true, fetchCallback("config", "previousElementSibling.value")) + "<br>"
     + "config settings: <select id=\"config\"><option></option>");
   Dir dir = LittleFS.openDir(CONFIG_DIR);
   while (dir.next()) {
@@ -112,8 +112,8 @@ void sendConfigForm() {
 }
 
 void handleForm() {
+  LOG.printf("%s %s: ", server.method() == HTTP_POST ? "POST" : "GET", server.uri());
   if (server.method() != HTTP_POST) {
-    Serial.println(server.uri());
     if (server.uri().equals("/wifi")) {
       String content = "";
       if (File f = LittleFS.open(WIFI_FILE, "r")) {
@@ -127,7 +127,7 @@ void handleForm() {
   } else {
     String val = server.arg("plain");
     uint16_t x = val.toInt();
-    Serial.println(server.uri() + ": " + val);
+    LOG.println(val);
 
     if (server.uri().charAt(1) == '0' || server.uri().charAt(1) == '1') {
       // animation config
@@ -167,7 +167,7 @@ void handleForm() {
         case 'y':
           CONFIG.ANIMATION[animation].PACE_TRANSITIONS = server.arg(0).equals("true"); break;
         default:
-          Serial.println("unknown animation POST request!");
+          LOG.println("unknown animation POST request!");
       }
       
     } else {
@@ -197,7 +197,6 @@ void handleForm() {
           CONFIG.HUE_OFFSET = 182*x; break;
           #endif
         case 'r':
-          Serial.println("Restarting");
           ESP.reset();
         case 's':
           CONFIG.SATURATION = x; break;
@@ -210,7 +209,7 @@ void handleForm() {
           }
           break;
         default:
-          Serial.println("unknown global POST request!");
+          LOG.println("unknown global POST request!");
       }
     }
 /*      case 'f':
