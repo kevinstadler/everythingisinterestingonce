@@ -11,15 +11,15 @@ enum PixelType { Synced, FadeToBlack, Radial, Linear, Flicker };
 // config parameters are written to file in this order
 struct AnimationConfig {
   // all durations in ms
-  uint16_t ON_TIME = 2000;
+  uint16_t ON_TIME = 1000;
   uint16_t ON_EXTRA = 0;
-  uint16_t OFF_TIME = 0;
+  uint16_t OFF_TIME = 800;
 
   PixelType PIXEL_TYPE = Linear;
   // switching probability -- ms
   uint16_t LIMIT_CHANGES = 1;
 
-  uint16_t TRANSITION_DURATION = 1;
+  uint16_t TRANSITION_DURATION = 1000;
   uint16_t TRANSITION_EXTRA = 0;
   // if true, only hue transitions of 180deg actually take the full transition duration
   bool PACE_TRANSITIONS = false;
@@ -28,14 +28,14 @@ struct AnimationConfig {
   // noise that goes in both directions
   uint8_t HUE_DRIFT = 0;
   // this one goes in both directions
-  byte DHUE_MIN = 15;
+  uint8_t DHUE_MIN = 30;
 };
 
 struct Config {
 //  PixelType PIXEL_TYPE = Linear;
-  byte HUE_BITS = 8; // up to 16bit (65k hues), no point using more than 10bit (1024 hues)
-  byte SATURATION = 255;
-  byte VALUE = 127;
+  uint8_t HUE_BITS = 8; // up to 16bit (65k hues), no point using more than 10bit (1024 hues)
+  uint8_t SATURATION = 255;
+  uint8_t VALUE = 64;
   // actually distinguishable hues per brightness level (=HSV value):
   // 63 -> 379
   // 127 -> 763
@@ -46,21 +46,26 @@ struct Config {
 //  uint16_t TRANSITION_DURATION = 0;
 //  bool PACE_TRANSITIONS = true;
 
-  byte HUE_OFFSET = 0;
-  byte DHUE_DETERMINISTIC = 0;
+  uint8_t HUE_OFFSET = 0;
+  uint8_t DHUE_DETERMINISTIC = 0;
 
   struct AnimationConfig ANIMATION[2];
 };
 
 struct Config CONFIG;
+
 String CONFIG_FILE_NAME;
-String MSG = "everything is interesting once";
+#define DEFAULT_MSG "everything is interesting once"
+String MSG = DEFAULT_MSG;
 
 #define PROBABILITY_BASE 1000000
 uint32_t transitionPs[2] = { PROBABILITY_BASE, PROBABILITY_BASE };
 
 // also sets CONFIG_FILE_NAME to something valid
 void loadConfig(String filename = CONFIG_FILE) {
+  // set default
+  CONFIG.ANIMATION[0].PIXEL_TYPE = FadeToBlack;
+  CONFIG.ANIMATION[1].PIXEL_TYPE = FadeToBlack;
   if (!LittleFS.begin()) {
     Serial.println("Failed to mount LittleFS");
   } else {

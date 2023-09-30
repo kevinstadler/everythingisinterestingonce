@@ -40,7 +40,7 @@ void loop() {
     last_t = t;
     frames = 0;
   }
-  server.handleClient();
+//  server.handleClient();
   draw(t);
   t = millis() - t;
   if (t < PERIOD_MS) {

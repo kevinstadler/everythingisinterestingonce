@@ -68,10 +68,9 @@ void startMatrix() {
   }*/
   for (uint8_t i = 1; i <= matrix.width(); i++) {
     fillRandomColors(i);
+    delay(20);
     matrix.show();
   }
-  matrix.clear();
-  matrix.show();
 }
 
 void showMsg(String msg) {
@@ -129,10 +128,7 @@ uint16_t currentEstimate(bool gammaCorrect = CONFIG.CORRECT_GAMMA, byte value = 
 
 void setMsg(String msg = MSG) {
   msg.trim();
-  if (msg.length() == 0) {
-    return;
-  }
-  MSG = msg;
+  MSG = (msg.length() == 0) ? DEFAULT_MSG : msg;
   int16_t x1, y1;
   uint16_t w, h;
   matrix.getTextBounds(MSG, 0, 0, &x1, &y1, &w, &h);

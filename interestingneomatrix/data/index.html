@@ -32,16 +32,6 @@
 			font-family: "IBM Plex Mono", fixed;
 			text-align: center;
 		}
-		input[type=range]::-webkit-slider-runnable-track {
-		  <!-- width: 100%; -->
-  <!-- height: 10px; -->
-  <!-- cursor: pointer; -->
-  <!-- animate: 0.2s; -->
-  <!-- box-shadow: 1px 1px 1px #000000; -->
-  <!-- border-radius: 5px; -->
-  <!-- border: 1px solid #000000; -->
-		<!-- background: #888; -->
-		}
 		.gradient {
 			display: inline-block;
 			height: .8em;
@@ -202,7 +192,7 @@
 		bottom: 0;
 		right: 0;
 		background-color: #111;
-		border-radius: .5em;
+		border-radius: .3em;
 		z-index: -1;
 		display: flex;
 		justify-content: center;
@@ -213,12 +203,11 @@
 	}
 	.box > button {
 		position: relative;
-		left: 25%;
-		top: 75%;
 		transform: translate(-50%, -50%);
-		width: 1.5em;
-		height: 1.5em;
+		width: 1em;
+		height: 1em;
 		border-radius: 50%;
+		border: none;
 		cursor: grab;
 	}
 	</style>
@@ -230,16 +219,33 @@
 		<div id="signature">a product by<h1>the Futile Corporation</h1></div>
 	</body>
 	<script type="text/javascript">
-	const setValue = (target, value) => {
+	const setValueImmediate = (target, value) => {
 		fetch(target, { method: 'POST', body: value }).then();
+	};
+	const debounce = (func, waitFor) => {
+		let timeout;
+		return (...args) => new Promise(resolve => {
+			if (timeout) {
+				clearTimeout(timeout);
+			}
+			timeout = setTimeout(() => resolve(func(...args)), waitFor);
+		});
+	}
+	// handle debouncers -- this implements per-item rate limiting, but not global
+	let debouncedSetValue = {};
+	const setValue = (target, value) => {
+		if (!Object.keys(debouncedSetValue).includes(target)) {
+			debouncedSetValue[target] = debounce(setValueImmediate, 100);
+		}
+		debouncedSetValue[target](target, value);
 	};
 	const fetchCallback = (target, field, extraCallback = '') => {
 		return "\"fetch('" + target + "', { method: 'POST', body: this." + field + " } ).then(r => {" + extraCallback + "})\"";
 	}
 
 	const range = (id, value, mn, mx, step = 1) => {
-	  let attribs = "value=\"" + value + "\" min=\"" + String(mn) + "\" max=\"" + String(mx) + "\" step=\"" + String(step) + "\"";
-		return "<input type=\"range\" id=\"" + id + "\" " + attribs + " oninput=" + fetchCallback(id, "value") + ' list="steplist"/><datalist id="steplist"> <option>1</option> <option>2</option> <option>3</option> <option>4</option> <option>5</option><option>6</option><option>7</option><option>8</option> <option>9</option><option>10</option><option>11</option> <option>12</option></datalist>';
+		let attribs = `value="${value}" min="${String(mn)}" max="${String(mx)}" step="${String(step)}"`;
+		return `<input type="range" id="${id}" ${attribs} oninput="setValueImmediate('${id}', this.value)" list="steplist"/><datalist id="steplist"> <option>1</option> <option>2</option> <option>3</option> <option>4</option> <option>5</option><option>6</option><option>7</option><option>8</option> <option>9</option><option>10</option><option>11</option> <option>12</option></datalist>`;
 	}
 
 	const dropdown = (id, options, n, selectedIndex, startAt = 0) => {
@@ -251,8 +257,8 @@
 	}
 
 	const controls = document.getElementById('controls');
-	controls.innerHTML = '<input type="text" style="font-size: 2em; width: 20em;" maxlength="40" value="everything is interesting once" oninput=' + fetchCallback('msg', 'msg') + ' />' + controls.innerHTML;
-	controls.innerHTML += '<div class="row"><div class="gradient lowres"></div>' + range("resolution", 8, 1, 12) + '<div class="gradient highres"></div></div>';
+	controls.innerHTML = `<input type="text" style="font-size: 2em; width: 20em;" maxlength="40" value="|msg|" oninput="setValue('msg', this.value)" />` + controls.innerHTML;
+	controls.innerHTML += '<div class="row"><div class="gradient lowres"></div>' + range("hue", |resolution|, 1, 8) + '<div class="gradient highres"></div></div>';
 	// left: rotate hue or blend colors, right: fade-to-black or flicker
 	// make sliders vertical??
 	// - fixed on time (extra time is fixed proportion?)
@@ -262,25 +268,32 @@
 	// 1. 'rest'
 	// 2. 'transition'
 	// 3. 'difference'
-	const toggle = (id) => {
-	return '<label id="' + id + '" class="switch"> <input type="checkbox" onchange=' + fetchCallback(id, 'checked')  + '> <span class="slider"></span> </label>';
+	const toggle = (id, extra='') => {
+		// transition0 is 3 unchecked, 2 checked
+		// transition1 is 1 unchecked, 4 checked
+		const base = (id == '0t') ? 3 : 1;
+		const inc = (id == '0t') ? -1 : 3;
+		return `<label id="${id}" class="switch"> <input type="checkbox" onchange="setValueImmediate('${id}', ${base} + this.checked * ${inc})" ${extra}> <span class="slider"></span> </label>`;
 	};
-	const slider2d = (label, xid, yid, xmin, xmax, ymin, ymax) => {
-		// https://codepen.io/tyler-murphy/pen/npMJRd
-		return `<div class="markerbounds"> <div class="box" data-xid="${xid}" data-yid="${xid}" data-xmin="${xmin}" data-xmax="${xmax}" data-ymin="${xmin}" data-ymax="${xmax}"><div>${label}</div><button></button></div></div>`;
+	const slider2d = (label, xid, x, xmin, xmax, yid, y, ymin, ymax) => {
+		const xp = Math.max(0, Math.min(Math.round(100 * ( x - xmin ) / ( xmax - xmin )), 100));
+		// watch out: y is flipped around (measured as distance from bottom, rather than top like the css)
+		const yp = Math.max(0, Math.min(Math.round(100 * ( y - ymax ) / ( ymin - ymax )), 100));
+		// data-ymin/ymax also flipped here
+		return `<div class="markerbounds"> <div class="box" data-xid="${xid}" data-xmin="${xmin}" data-xmax="${xmax}" data-yid="${yid}" data-ymin="${ymax}" data-ymax="${ymin}"><div>${label}</div><button style="left: ${xp}%; top: ${yp}%;"></button></div></div>`;
 	};
-	const transitioncontrols = (n) => {
-		return '<div class="col">' + slider2d("rest", n + "on1", n + "on2", 30, 50) + slider2d("motion", n + "q", n + "r", 30, 50) + slider2d("difference", n + "n", n + "d", 30, 50) + "</div>";
+	const transitioncontrols = (i, on1, on2, q, roroff, n, d) => {
+		return `<div class="col">${slider2d("rest", i + "on1", on1, 10, 3000, i + "on2", on2, 0, 2000)}${slider2d("motion", i + "q", q, 2000, 100, i + (i == 1 ? "r" : "off"), roroff, 2000, 0)}${slider2d("change", i + "n", n, 30, 126, i + "d", d, 0, 100)}</div>`;
 	};
-	controls.innerHTML += '<div class="triple"><div class="row"><div class="gradient smol rgb"></div>' + toggle('transition1') + '<div class="gradient smol hsv"></div></div><div></div><div class="row"><div class="gradient smol ftb"></div>' + toggle("transition2") + '<div class="gradient smol flicker"></div></div></div><div class="triple">' +transitioncontrols(0) + '<div>' + range('crossfader', 50, 0, 100) + '</div>' + transitioncontrols(1) + "</div>";
+	controls.innerHTML += `<div class="triple"><div class="row"><div class="gradient smol rgb"></div>${toggle('0t', "|radial|")}<div class="gradient smol hsv"></div></div><div></div><div class="row"><div class="gradient smol ftb"></div>${toggle("1t", "|flicker|")}<div class="gradient smol flicker"></div></div></div><div class="triple">${transitioncontrols(0, |0on1|, |0on2|, |0q|, |0r|, |0n|, |0d|)}<div>${range('0l', |crossfade|, 1, 10000)}</div>${transitioncontrols(1, |1on1|, |1on2|, |1q|, |1off|, |1n|, |1d|)}</div>`;
 	const boxes = document.getElementsByClassName("box");
 	const setPercent = (box, x, y) => {
 		const xp = Math.max(0, Math.min(x / box.clientWidth, 1));
 		const yp = Math.max(0, Math.min(y / box.clientHeight, 1));
 		box.lastElementChild.style.left = Math.round(100*xp) + "%";
 		box.lastElementChild.style.top = Math.round(100*yp) + "%";
-		setValue(box.dataset.xid, Math.round(box.dataset.xmin + xp*(box.dataset.xmax-box.dataset.xmin)));
-		setValue(box.dataset.yid, Math.round(box.dataset.ymin + yp*(box.dataset.ymax-box.dataset.ymin)));
+		setValue(box.dataset.xid, Math.round(parseInt(box.dataset.xmin) + xp*(box.dataset.xmax-box.dataset.xmin)));
+		setValue(box.dataset.yid, Math.round(parseInt(box.dataset.ymin) + yp*(box.dataset.ymax-box.dataset.ymin)));
 	};
 	const jumpto = (e) => {
 		if (e.target.nodeName == "DIV") {
@@ -291,20 +304,32 @@
 		e.target.dataset.dragging = e.pointerId;
 	}
 	const drag = (e) => {
-		if (e.target.dataset.dragging == e.pointerId) {
-			setPercent(e.target.parentElement, e.target.offsetLeft - e.target.offsetWidth/2 + e.offsetX, e.target.offsetTop - e.target.offsetHeight/2 + e.offsetY);
+		const onButton = e.target.nodeName == "BUTTON";
+		const button = onButton ? e.target : e.target.lastElementChild;
+		if (button.dataset.dragging == e.pointerId) {
+			if (onButton) {
+				setPercent(e.target.parentElement, e.target.offsetLeft - e.target.offsetWidth/2 + e.offsetX, e.target.offsetTop - e.target.offsetHeight/2 + e.offsetY);
+			} else {
+				// mouse was moved to quickly so lost track of the button, now just hovering the box
+				// pretty sure this is right
+				setPercent(e.target, e.offsetX, e.offsetY);
+			}
 		}
 	};
 	const dragend = (e) => {
-		e.target.dataset.dragging = undefined;
+		console.log(e);
+		for (let box of document.getElementsByClassName("box")) {
+			if (e.pointerId == box.lastElementChild.dataset.dragging) {
+				box.lastElementChild.dataset.dragging = undefined;
+			}
+		}
 	};
 
 	for (box of boxes) {
 		box.onclick = jumpto;
 		box.lastChild.onpointerdown = dragstart;
-		box.lastChild.onpointermove = drag;
-		box.lastChild.onpointerup = dragend;
-		box.lastChild.onpointerleave = dragend;
+		box.onpointermove = drag;
 	}
+	document.body.addEventListener('pointerup', dragend);
 	</script>
 </html>
