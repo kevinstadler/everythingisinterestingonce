@@ -126,6 +126,44 @@ uint16_t currentEstimate(bool gammaCorrect = CONFIG.CORRECT_GAMMA, byte value = 
   return matrix.width() * matrix.height() + nLit * onePx / 13;
 }
 
+// calculate per-animation transition probability based on LIMIT_CHANGES
+void calculateTransitionPs() {
+  uint16_t meanTimeBetween = CONFIG.ANIMATION[1].TRANSITION_DURATION + CONFIG.ANIMATION[1].TRANSITION_EXTRA/2;
+  if (CONFIG.ANIMATION[1].PACE_TRANSITIONS) {
+    meanTimeBetween /= 2;
+  }
+  meanTimeBetween += CONFIG.ANIMATION[1].ON_TIME + CONFIG.ANIMATION[1].ON_EXTRA/2;
+  meanTimeBetween /= nLit;
+  meanTimeBetween = max((uint16_t) 1, meanTimeBetween);
+
+  if (CONFIG.ANIMATION[0].LIMIT_CHANGES <= meanTimeBetween) {
+    transitionPs[0] = PROBABILITY_BASE;
+    LOG.println("Transition will be immediate");
+  } else {
+    // if meantime is 100 and limit is 200 -> 1 of the nLit pixels should trigger after 100 ms
+    // if meantime is 100 and limit is 1000 -> 1 of the nLit should trigger after 900ms
+    // we want expected value of the binomial (number of successes) = n*p = 1 / ( (limit_changes-meanTimeBetween) * fps)
+    // per-pixel chance of triggering: probability base = X * fps / (1000 * (limit_changes - meantime))
+    LOG.printf("Mean time between ready pixels is %ums, which is less than the limit of %ums\n", meanTimeBetween, CONFIG.ANIMATION[0].LIMIT_CHANGES);
+
+    // easier: reduce probability to 1 in CONFIG.ANIMATION[0].LIMIT_CHANGES / meanTimeBetween
+    transitionPs[0] = PROBABILITY_BASE * meanTimeBetween / CONFIG.ANIMATION[0].LIMIT_CHANGES;
+//    transitionPs[0] = PROBABILITY_BASE * 1000;
+//    transitionPs[0] /= saveFps;
+//    transitionPs[0] /= nLit;
+//    transitionPs[0] /= CONFIG.ANIMATION[0].LIMIT_CHANGES - meanTimeBetween;
+    LOG.printf("Transition will be stochastic, probability of triggering per pixel per (%ums) frame = %.4f\n", 1000/fps, transitionPs[0] / (float) PROBABILITY_BASE);
+  }
+
+  // how long does it take to enumerate all combos? -> INSANELY LONG
+  // 260**300     use: x^a / x^b = x^(a-b)
+  //  double oneyear = 31536000.0;
+  // 260**300 / oneyear = 260**somethingsmaller
+  // change to logarithm of base lit
+  //  double yearExp = log(oneyear) / log(lit);
+  //  Serial.println(yearExp);
+}
+
 void setMsg(String msg = MSG) {
   msg.trim();
   MSG = (msg.length() == 0) ? DEFAULT_MSG : msg;
@@ -188,39 +226,5 @@ void setMsg(String msg = MSG) {
   }
   LOG.printf("Randomly generating %u distinct hues, when the current LED brightness allows up to %u distinguishable hues\n", 1 << CONFIG.HUE_BITS, distinctColors);
 
-  // calculate transition probability
-  uint16_t meanTimeBetween = CONFIG.ANIMATION[1].TRANSITION_DURATION + CONFIG.ANIMATION[1].TRANSITION_EXTRA/2;
-  if (CONFIG.ANIMATION[1].PACE_TRANSITIONS) {
-    meanTimeBetween /= 2;
-  }
-  meanTimeBetween += CONFIG.ANIMATION[1].ON_TIME + CONFIG.ANIMATION[1].ON_EXTRA/2;
-  meanTimeBetween /= nLit;
-  meanTimeBetween = max((uint16_t) 1, meanTimeBetween);
-
-  if (CONFIG.ANIMATION[0].LIMIT_CHANGES <= meanTimeBetween) {
-    transitionPs[0] = PROBABILITY_BASE;
-    LOG.println("Transition will be immediate");
-  } else {
-    // if meantime is 100 and limit is 200 -> 1 of the nLit pixels should trigger after 100 ms
-    // if meantime is 100 and limit is 1000 -> 1 of the nLit should trigger after 900ms
-    // we want expected value of the binomial (number of successes) = n*p = 1 / ( (limit_changes-meanTimeBetween) * fps)
-    // per-pixel chance of triggering: probability base = X * fps / (1000 * (limit_changes - meantime))
-    LOG.printf("Mean time between ready pixels is %ums, which is less than the limit of %ums\n", meanTimeBetween, CONFIG.ANIMATION[0].LIMIT_CHANGES);
-
-    // easier: reduce probability to 1 in CONFIG.ANIMATION[0].LIMIT_CHANGES / meanTimeBetween
-    transitionPs[0] = PROBABILITY_BASE * meanTimeBetween / CONFIG.ANIMATION[0].LIMIT_CHANGES;
-//    transitionPs[0] = PROBABILITY_BASE * 1000;
-//    transitionPs[0] /= saveFps;
-//    transitionPs[0] /= nLit;
-//    transitionPs[0] /= CONFIG.ANIMATION[0].LIMIT_CHANGES - meanTimeBetween;
-    LOG.printf("Transition will be stochastic, probability of triggering per pixel per (%ums) frame = %.4f\n", 1000/fps, transitionPs[0] / (float) PROBABILITY_BASE);
-  }
-
-  // how long does it take to enumerate all combos? -> INSANELY LONG
-  // 260**300     use: x^a / x^b = x^(a-b)
-  //  double oneyear = 31536000.0;
-  // 260**300 / oneyear = 260**somethingsmaller
-  // change to logarithm of base lit
-  //  double yearExp = log(oneyear) / log(lit);
-  //  Serial.println(yearExp);
+  calculateTransitionPs();
 }

@@ -258,8 +258,8 @@
 	}
 
 	const controls = document.getElementById('controls');
-	controls.innerHTML = `<input type="text" style="font-size: 2em; width: 20em;" maxlength="40" value="|msg|" oninput="setValue('msg', this.value)" />` + controls.innerHTML;
-	controls.innerHTML += '<div class="row"><div class="gradient lowres"></div>' + range("hue", |resolution|, 1, 8) + '<div class="gradient highres"></div></div>';
+	controls.innerHTML = `<input type="text" style="font-size: 2em; width: 20em;" maxlength="40" value="everything is interesting once" oninput="setValue('msg', this.value)" />` + controls.innerHTML;
+	controls.innerHTML += '<div class="row"><div class="gradient lowres"></div>' + range("hue", 6, 1, 8) + '<div class="gradient highres"></div></div>';
 	// left: rotate hue or blend colors, right: fade-to-black or flicker
 	// make sliders vertical??
 	// - fixed on time (extra time is fixed proportion?)
@@ -286,7 +286,7 @@
 	const transitioncontrols = (i, on1, on2, q, roroff, n, d) => {
 		return `<div class="col">${slider2d("rest", i + "on1", on1, 10, 3000, i + "on2", on2, 0, 2000)}${slider2d("motion", i + "q", q, 2000, 100, i + (i == 1 ? "r" : "off"), roroff, 2000, 0)}${slider2d("change", i + "n", n, 30, 126, i + "d", d, 0, 100)}</div>`;
 	};
-	controls.innerHTML += `<div class="triple"><div class="row"><div class="gradient smol rgb"></div>${toggle('1t', "|radial|")}<div class="gradient smol hsv"></div></div><div></div><div class="row"><div class="gradient smol ftb"></div>${toggle("0t", "|flicker|")}<div class="gradient smol flicker"></div></div></div><div class="triple">${transitioncontrols(1, |1on1|, |1on2|, |1q|, |1r|, |1n|, |1d|)}<div>${range('0l', |crossfade|, 1, 1500)}</div>${transitioncontrols(0, |0on1|, |0on2|, |0q|, |0off|, |0n|, |0d|)}</div>`;
+	controls.innerHTML += `<div class="triple"><div class="row"><div class="gradient smol rgb"></div>${toggle('1t', "")}<div class="gradient smol hsv"></div></div><div></div><div class="row"><div class="gradient smol ftb"></div>${toggle("0t", "")}<div class="gradient smol flicker"></div></div></div><div class="triple">${transitioncontrols(1, 300, 0, 1000, 500, 60, 20)}<div>${range('0l', 2000, 1, 1500)}</div>${transitioncontrols(0, 1000, 0, 2000, 800, 60, 20)}</div>`;
 	const boxes = document.getElementsByClassName("box");
 	const setPercent = (box, x, y) => {
 		const xp = Math.max(0, Math.min(x / box.clientWidth, 1));

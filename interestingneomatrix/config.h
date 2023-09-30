@@ -17,7 +17,7 @@ struct AnimationConfig {
 
   PixelType PIXEL_TYPE = Linear;
   // switching probability -- ms
-  uint16_t LIMIT_CHANGES = 1;
+  uint16_t LIMIT_CHANGES = 1200;
 
   uint16_t TRANSITION_DURATION = 1000;
   uint16_t TRANSITION_EXTRA = 0;
@@ -26,14 +26,13 @@ struct AnimationConfig {
   bool SINE_TRANSITIONS = false;
 
   // noise that goes in both directions
-  uint8_t HUE_DRIFT = 0;
+  uint8_t HUE_DRIFT = 20;
   // this one goes in both directions
-  uint8_t DHUE_MIN = 30;
+  uint8_t DHUE_MIN = 60;
 };
 
 struct Config {
-//  PixelType PIXEL_TYPE = Linear;
-  uint8_t HUE_BITS = 8; // up to 16bit (65k hues), no point using more than 10bit (1024 hues)
+  uint8_t HUE_BITS = 6; // up to 16bit (65k hues), no point using more than 10bit (1024 hues)
   uint8_t SATURATION = 255;
   uint8_t VALUE = 64;
   // actually distinguishable hues per brightness level (=HSV value):
@@ -42,9 +41,6 @@ struct Config {
   // 255 -> 1531
   bool CORRECT_GAMMA = false;
   bool SYNC_PIXELS = false;
-
-//  uint16_t TRANSITION_DURATION = 0;
-//  bool PACE_TRANSITIONS = true;
 
   uint8_t HUE_OFFSET = 0;
   uint8_t DHUE_DETERMINISTIC = 0;
@@ -63,9 +59,12 @@ uint32_t transitionPs[2] = { PROBABILITY_BASE, PROBABILITY_BASE };
 
 // also sets CONFIG_FILE_NAME to something valid
 void loadConfig(String filename = CONFIG_FILE) {
-  // set default
+  // set pretty defaults
   CONFIG.ANIMATION[0].PIXEL_TYPE = FadeToBlack;
-  CONFIG.ANIMATION[1].PIXEL_TYPE = FadeToBlack;
+  CONFIG.ANIMATION[0].TRANSITION_DURATION = 2000;
+  CONFIG.ANIMATION[0].TRANSITION_EXTRA = 100;
+  CONFIG.ANIMATION[1].ON_TIME = 300;
+  CONFIG.ANIMATION[1].TRANSITION_EXTRA = 500;
   if (!LittleFS.begin()) {
     Serial.println("Failed to mount LittleFS");
   } else {
